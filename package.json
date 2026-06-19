@@ -26,13 +26,18 @@
   "build": {
     "appId": "com.pinder.app",
     "productName": "Pinder",
-    "mac": {
-      "category": "public.app-category.photography"
+    "extends": null,
+    "extraMetadata": {
+      "main": "electron/main.js"
     },
     "files": [
       "build/**/*",
-      "electron/**/*"
-    ]
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.photography"
+    }
   },
   "eslintConfig": {
     "extends": "react-app"
