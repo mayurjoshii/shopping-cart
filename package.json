@@ -36,7 +36,8 @@
       "package.json"
     ],
     "mac": {
-      "category": "public.app-category.photography"
+      "category": "public.app-category.photography",
+      "target": "dir"
     }
   },
   "eslintConfig": {
