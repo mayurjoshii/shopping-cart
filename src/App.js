@@ -12,6 +12,18 @@ function basename(filePath) {
   return filePath.split('/').pop();
 }
 
+function formatSize(bytes) {
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return bytes + ' B';
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+  });
+}
+
 export default function App() {
   const [files, setFiles] = useState([]);
   const [index, setIndex] = useState(0);
@@ -19,6 +31,13 @@ export default function App() {
   const [phase, setPhase] = useState('idle'); // idle | reviewing | confirm | done
   const [flash, setFlash] = useState(null); // 'keep' | 'delete' | null
   const [returnTo, setReturnTo] = useState('done'); // where confirm screen goes back to
+  const [fileInfo, setFileInfo] = useState(null); // { size, created }
+
+  useEffect(() => {
+    if (phase !== 'reviewing' || !files[index]) return;
+    setFileInfo(null);
+    window.pinder.getFileInfo(files[index]).then(setFileInfo);
+  }, [phase, index, files]);
 
   const triggerFlash = useCallback((type) => {
     setFlash(type);
@@ -121,12 +140,18 @@ export default function App() {
           </button>
         )}
         <div className="counter">{index + 1} / {files.length}</div>
+        {fileInfo && (
+          <div className="file-info">
+            <span className="file-info-name">{basename(files[index])}</span>
+            <span>{formatSize(fileInfo.size)}</span>
+            <span>{formatDate(fileInfo.created)}</span>
+          </div>
+        )}
         {video ? (
           <video key={current} src={src} autoPlay loop muted className="media" />
         ) : (
           <img key={current} src={src} alt={basename(current)} className="media" />
         )}
-        <div className="filename">{basename(current)}</div>
         <div className="hint-bar">
           <span className="hint-delete">← delete</span>
           <span className="hint-keep">keep →</span>

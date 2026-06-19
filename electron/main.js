@@ -66,6 +66,15 @@ ipcMain.handle('open-folder', async () => {
     .sort();
 });
 
+ipcMain.handle('get-file-info', (_event, filePath) => {
+  try {
+    const stat = fs.statSync(filePath);
+    return { size: stat.size, created: stat.birthtime.toISOString() };
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle('delete-files', async (_event, filePaths) => {
   for (const filePath of filePaths) {
     try {

@@ -67,22 +67,37 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.file-info {
+  position: absolute;
+  top: 46px;
+  right: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.75rem;
+  color: #999;
+  max-width: 220px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.file-info-name {
+  color: #ccc;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .media {
   max-width: 90vw;
   max-height: 82vh;
   object-fit: contain;
   border-radius: 4px;
-}
-
-.filename {
-  position: absolute;
-  bottom: 44px;
-  font-size: 0.75rem;
-  color: #444;
-  max-width: 80vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .hint-bar {
