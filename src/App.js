@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'm4v']);
@@ -36,12 +36,22 @@ export default function App() {
   const [fileInfo, setFileInfo] = useState(null);
   const [history, setHistory] = useState([]); // undo stack: [{ filePath, wasDeleted }]
   const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupCount }
+  const filmstripRef = useRef(null);
+  const activeThumbRef = useRef(null);
 
   useEffect(() => {
     if (phase !== 'reviewing' || !files[index]) return;
     setFileInfo(null);
     window.pinder.getFileInfo(files[index]).then(setFileInfo);
   }, [phase, index, files]);
+
+  useEffect(() => {
+    if (activeThumbRef.current) {
+      activeThumbRef.current.scrollIntoView({
+        behavior: 'smooth', inline: 'center', block: 'nearest',
+      });
+    }
+  }, [index]);
 
   const triggerFlash = useCallback((type) => {
     setFlash(type);
@@ -223,6 +233,20 @@ export default function App() {
         ) : (
           <img key={current} src={src} alt={basename(current)} className="media" />
         )}
+        <div className="filmstrip" ref={filmstripRef}>
+          {files.map((f, i) => (
+            <div
+              key={f}
+              ref={i === index ? activeThumbRef : null}
+              className={`strip-thumb${i === index ? ' active' : ''}${toDelete.has(f) ? ' flagged' : ''}`}
+              onClick={() => setIndex(i)}
+            >
+              {isVideo(f)
+                ? <div className="strip-video-icon">▶</div>
+                : <img src={`file://${f}`} alt="" />}
+            </div>
+          ))}
+        </div>
         <div className="hint-bar">
           <span className="hint-delete">← trash</span>
           {history.length > 0 && <span className="hint-undo">Z undo</span>}
