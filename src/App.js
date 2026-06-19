@@ -61,12 +61,20 @@ export default function App() {
         });
       } else if (e.key === 'ArrowLeft') {
         triggerFlash('delete');
-        setToDelete((prev) => new Set([...prev, files[index]]));
+        const newToDelete = new Set([...toDelete, files[index]]);
+        setToDelete(newToDelete);
         setHistory((h) => [...h, { filePath: files[index], wasDeleted: true }]);
-        setIndex((i) => {
-          if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
-          return i + 1;
-        });
+        if (newToDelete.size >= 50) {
+          // Auto-pause: advance past current file then prompt review
+          setIndex((i) => (i + 1 < files.length ? i + 1 : i));
+          setReturnTo('reviewing');
+          setPhase('confirm');
+        } else {
+          setIndex((i) => {
+            if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
+            return i + 1;
+          });
+        }
       } else if (e.key === 'z' || e.key === 'Z') {
         setHistory((h) => {
           if (!h.length) return h;
@@ -83,7 +91,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [phase, index, files, triggerFlash]);
+  }, [phase, index, files, toDelete, triggerFlash]);
 
   async function openFolder() {
     const result = await window.pinder.openFolder();
@@ -230,7 +238,13 @@ export default function App() {
     const count = deleteList.length;
     return (
       <div className="screen confirm">
-        <h2>{count === 0 ? 'Nothing flagged' : `Move ${count} file${count !== 1 ? 's' : ''} to Trash?`}</h2>
+        <h2>
+          {count === 0
+            ? 'Nothing flagged'
+            : count >= 50 && returnTo === 'reviewing'
+            ? `50 files flagged — review before continuing`
+            : `Move ${count} file${count !== 1 ? 's' : ''} to Trash?`}
+        </h2>
         {count > 0 && (
           <div className="delete-grid">
             {deleteList.map((f) => (
