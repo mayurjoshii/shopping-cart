@@ -18,6 +18,7 @@ export default function App() {
   const [toDelete, setToDelete] = useState(new Set());
   const [phase, setPhase] = useState('idle'); // idle | reviewing | confirm | done
   const [flash, setFlash] = useState(null); // 'keep' | 'delete' | null
+  const [returnTo, setReturnTo] = useState('done'); // where confirm screen goes back to
 
   const triggerFlash = useCallback((type) => {
     setFlash(type);
@@ -26,6 +27,7 @@ export default function App() {
 
   const advance = useCallback((currentIndex, total) => {
     if (currentIndex + 1 >= total) {
+      setReturnTo('done');
       setPhase('confirm');
     } else {
       setIndex(currentIndex + 1);
@@ -61,7 +63,29 @@ export default function App() {
 
   async function confirmDelete() {
     await window.pinder.deleteFiles([...toDelete]);
-    setPhase('done');
+    if (returnTo === 'reviewing') {
+      setToDelete(new Set());
+      setPhase('reviewing');
+    } else {
+      setPhase('done');
+    }
+  }
+
+  function cancelConfirm() {
+    setPhase(returnTo === 'reviewing' ? 'reviewing' : 'done');
+  }
+
+  function openReviewMid() {
+    setReturnTo('reviewing');
+    setPhase('confirm');
+  }
+
+  function removeFromDelete(filePath) {
+    setToDelete((prev) => {
+      const next = new Set(prev);
+      next.delete(filePath);
+      return next;
+    });
   }
 
   function restart() {
@@ -91,16 +115,14 @@ export default function App() {
 
     return (
       <div className={`screen reviewing ${flash ? `flash-${flash}` : ''}`}>
+        {toDelete.size > 0 && (
+          <button className="review-flagged-btn" onClick={openReviewMid}>
+            Review flagged ({toDelete.size})
+          </button>
+        )}
         <div className="counter">{index + 1} / {files.length}</div>
         {video ? (
-          <video
-            key={current}
-            src={src}
-            autoPlay
-            loop
-            muted
-            className="media"
-          />
+          <video key={current} src={src} autoPlay loop muted className="media" />
         ) : (
           <img key={current} src={src} alt={basename(current)} className="media" />
         )}
@@ -114,16 +136,31 @@ export default function App() {
   }
 
   if (phase === 'confirm') {
-    const count = toDelete.size;
+    const deleteList = [...toDelete];
+    const count = deleteList.length;
     return (
       <div className="screen confirm">
-        <h2>{count === 0 ? 'Nothing to delete' : `Delete ${count} file${count !== 1 ? 's' : ''}?`}</h2>
+        <h2>{count === 0 ? 'Nothing flagged' : `Delete ${count} file${count !== 1 ? 's' : ''}?`}</h2>
         {count > 0 && (
-          <ul className="delete-list">
-            {[...toDelete].map((f) => (
-              <li key={f}>{basename(f)}</li>
+          <div className="delete-grid">
+            {deleteList.map((f) => (
+              <div key={f} className="grid-thumb">
+                {isVideo(f) ? (
+                  <video src={`file://${f}`} muted />
+                ) : (
+                  <img src={`file://${f}`} alt={basename(f)} />
+                )}
+                <button
+                  className="remove-btn"
+                  onClick={() => removeFromDelete(f)}
+                  title="Un-flag"
+                >
+                  ×
+                </button>
+                <div className="thumb-name">{basename(f)}</div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
         <div className="confirm-buttons">
           {count > 0 && (
@@ -131,8 +168,8 @@ export default function App() {
               Delete {count} file{count !== 1 ? 's' : ''}
             </button>
           )}
-          <button className="btn-secondary" onClick={restart}>
-            {count === 0 ? 'Done' : 'Cancel — keep all'}
+          <button className="btn-secondary" onClick={cancelConfirm}>
+            {returnTo === 'reviewing' ? 'Back to review' : count === 0 ? 'Done' : 'Cancel — keep all'}
           </button>
         </div>
       </div>

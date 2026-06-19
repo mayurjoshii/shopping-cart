@@ -98,10 +98,30 @@ body {
 .hint-delete { color: #ff3b30; }
 .hint-keep   { color: #34c759; }
 
+/* Review flagged button (mid-review) */
+.review-flagged-btn {
+  position: absolute;
+  top: 16px;
+  left: 20px;
+  background: rgba(255, 59, 48, 0.15);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.review-flagged-btn:hover {
+  background: rgba(255, 59, 48, 0.28);
+}
+
 /* Confirm screen */
 .confirm {
   gap: 20px;
   padding: 40px;
+  justify-content: flex-start;
+  padding-top: 60px;
 }
 
 .confirm h2 {
@@ -109,26 +129,62 @@ body {
   font-weight: 600;
 }
 
-.delete-list {
-  list-style: none;
-  max-height: 50vh;
+/* Thumbnail grid */
+.delete-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
   overflow-y: auto;
+  max-height: 60vh;
   width: 100%;
-  max-width: 560px;
+  max-width: 860px;
+  padding: 4px;
+}
+
+.grid-thumb {
+  position: relative;
   background: #1a1a1a;
-  border-radius: 8px;
-  padding: 12px 16px;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-.delete-list li {
-  font-size: 0.85rem;
-  color: #bbb;
-  padding: 4px 0;
-  border-bottom: 1px solid #222;
+.grid-thumb img,
+.grid-thumb video {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
 }
 
-.delete-list li:last-child {
-  border-bottom: none;
+.thumb-name {
+  font-size: 0.7rem;
+  color: #888;
+  padding: 4px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: rgba(255, 59, 48, 0.8);
 }
 
 .confirm-buttons {
