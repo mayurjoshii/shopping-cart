@@ -113,6 +113,56 @@ body {
 .hint-delete { color: #ff3b30; }
 .hint-keep   { color: #34c759; }
 
+/* Folder summary (ready screen) */
+.summary-box {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 16px 24px;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.summary-label { color: #666; }
+.summary-value { color: #ccc; font-variant-numeric: tabular-nums; }
+.summary-dup   { color: #ff9f0a; }
+
+/* Duplicate badge in file-info box */
+.dup-badge {
+  color: #ff9f0a;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Undo hint in hint-bar */
+.hint-undo { color: #888; }
+
+/* Duplicate badge on grid thumbnail */
+.thumb-dup-badge {
+  position: absolute;
+  bottom: 28px;
+  left: 6px;
+  background: rgba(255, 159, 10, 0.85);
+  color: #111;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Review flagged button (mid-review) */
 .review-flagged-btn {
   position: absolute;

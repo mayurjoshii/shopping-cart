@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
@@ -53,17 +53,40 @@ ipcMain.handle('open-folder', async () => {
     properties: ['openDirectory'],
     message: 'Choose a folder of photos and videos to review',
   });
-  if (result.canceled || !result.filePaths.length) return [];
+  if (result.canceled || !result.filePaths.length) return null;
 
   const folder = result.filePaths[0];
   const entries = fs.readdirSync(folder);
-  return entries
+  const filePaths = entries
     .filter((name) => {
       const ext = name.split('.').pop().toLowerCase();
       return MEDIA_EXTENSIONS.has(ext) && !name.startsWith('.');
     })
     .map((name) => path.join(folder, name))
     .sort();
+
+  // Gather stats for each file
+  const stats = filePaths.map((fp) => {
+    try { return fs.statSync(fp); } catch { return null; }
+  });
+
+  // Total size
+  const totalSize = stats.reduce((sum, s) => sum + (s ? s.size : 0), 0);
+
+  // Duplicate detection: files sharing the exact same byte size
+  const sizeMap = new Map();
+  stats.forEach((s, i) => {
+    if (!s) return;
+    const key = s.size;
+    if (!sizeMap.has(key)) sizeMap.set(key, []);
+    sizeMap.get(key).push(filePaths[i]);
+  });
+  const duplicates = [];
+  for (const group of sizeMap.values()) {
+    if (group.length > 1) duplicates.push(...group);
+  }
+
+  return { paths: filePaths, totalSize, duplicates };
 });
 
 ipcMain.handle('get-file-info', (_event, filePath) => {
@@ -75,12 +98,13 @@ ipcMain.handle('get-file-info', (_event, filePath) => {
   }
 });
 
+// Move to Trash instead of permanent deletion
 ipcMain.handle('delete-files', async (_event, filePaths) => {
   for (const filePath of filePaths) {
     try {
-      fs.unlinkSync(filePath);
+      await shell.trashItem(filePath);
     } catch (err) {
-      console.error('Failed to delete', filePath, err);
+      console.error('Failed to trash', filePath, err);
     }
   }
 });

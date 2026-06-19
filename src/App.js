@@ -13,6 +13,7 @@ function basename(filePath) {
 }
 
 function formatSize(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
   return bytes + ' B';
@@ -28,10 +29,13 @@ export default function App() {
   const [files, setFiles] = useState([]);
   const [index, setIndex] = useState(0);
   const [toDelete, setToDelete] = useState(new Set());
-  const [phase, setPhase] = useState('idle'); // idle | reviewing | confirm | done
+  const [duplicates, setDuplicates] = useState(new Set());
+  const [phase, setPhase] = useState('idle'); // idle | ready | reviewing | confirm | done
   const [flash, setFlash] = useState(null); // 'keep' | 'delete' | null
-  const [returnTo, setReturnTo] = useState('done'); // where confirm screen goes back to
-  const [fileInfo, setFileInfo] = useState(null); // { size, created }
+  const [returnTo, setReturnTo] = useState('done');
+  const [fileInfo, setFileInfo] = useState(null);
+  const [history, setHistory] = useState([]); // undo stack: [{ filePath, wasDeleted }]
+  const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupCount }
 
   useEffect(() => {
     if (phase !== 'reviewing' || !files[index]) return;
@@ -44,43 +48,64 @@ export default function App() {
     setTimeout(() => setFlash(null), 300);
   }, []);
 
-  const advance = useCallback((currentIndex, total) => {
-    if (currentIndex + 1 >= total) {
-      setReturnTo('done');
-      setPhase('confirm');
-    } else {
-      setIndex(currentIndex + 1);
-    }
-  }, []);
-
   useEffect(() => {
     if (phase !== 'reviewing') return;
 
     const handleKey = (e) => {
       if (e.key === 'ArrowRight') {
         triggerFlash('keep');
-        advance(index, files.length);
+        setHistory((h) => [...h, { filePath: files[index], wasDeleted: false }]);
+        setIndex((i) => {
+          if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
+          return i + 1;
+        });
       } else if (e.key === 'ArrowLeft') {
         triggerFlash('delete');
         setToDelete((prev) => new Set([...prev, files[index]]));
-        advance(index, files.length);
+        setHistory((h) => [...h, { filePath: files[index], wasDeleted: true }]);
+        setIndex((i) => {
+          if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
+          return i + 1;
+        });
+      } else if (e.key === 'z' || e.key === 'Z') {
+        setHistory((h) => {
+          if (!h.length) return h;
+          const next = [...h];
+          const last = next.pop();
+          if (last.wasDeleted) {
+            setToDelete((td) => { const n = new Set(td); n.delete(last.filePath); return n; });
+          }
+          setIndex((i) => Math.max(0, i - 1));
+          return next;
+        });
       }
     };
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [phase, index, files, advance, triggerFlash]);
+  }, [phase, index, files, triggerFlash]);
 
   async function openFolder() {
-    const paths = await window.pinder.openFolder();
-    if (!paths.length) return;
-    setFiles(paths);
+    const result = await window.pinder.openFolder();
+    if (!result || !result.paths.length) return;
+    setFiles(result.paths);
+    setDuplicates(new Set(result.duplicates));
+    setFolderSummary({
+      count: result.paths.length,
+      totalSize: result.totalSize,
+      dupCount: result.duplicates.length,
+    });
     setIndex(0);
     setToDelete(new Set());
+    setHistory([]);
+    setPhase('ready');
+  }
+
+  function startReview() {
     setPhase('reviewing');
   }
 
-  async function confirmDelete() {
+  async function confirmTrash() {
     await window.pinder.deleteFiles([...toDelete]);
     if (returnTo === 'reviewing') {
       setToDelete(new Set());
@@ -111,9 +136,13 @@ export default function App() {
     setFiles([]);
     setIndex(0);
     setToDelete(new Set());
+    setHistory([]);
+    setFolderSummary(null);
+    setDuplicates(new Set());
     setPhase('idle');
   }
 
+  // ── Idle ──────────────────────────────────────────────
   if (phase === 'idle') {
     return (
       <div className="screen idle">
@@ -122,15 +151,48 @@ export default function App() {
         <button className="btn-primary" onClick={openFolder}>
           Open Folder
         </button>
-        <p className="hint">← delete &nbsp;&nbsp; → keep</p>
+        <p className="hint">← delete &nbsp;&nbsp; → keep &nbsp;&nbsp; Z undo</p>
       </div>
     );
   }
 
+  // ── Ready (folder summary) ────────────────────────────
+  if (phase === 'ready' && folderSummary) {
+    return (
+      <div className="screen idle">
+        <h1 className="logo">Ready</h1>
+        <div className="summary-box">
+          <div className="summary-row">
+            <span className="summary-label">Files</span>
+            <span className="summary-value">{folderSummary.count}</span>
+          </div>
+          <div className="summary-row">
+            <span className="summary-label">Total size</span>
+            <span className="summary-value">{formatSize(folderSummary.totalSize)}</span>
+          </div>
+          {folderSummary.dupCount > 0 && (
+            <div className="summary-row">
+              <span className="summary-label">Possible duplicates</span>
+              <span className="summary-value summary-dup">{folderSummary.dupCount}</span>
+            </div>
+          )}
+        </div>
+        <button className="btn-primary" onClick={startReview}>
+          Start Review
+        </button>
+        <button className="btn-secondary" onClick={restart} style={{ marginTop: 4 }}>
+          Choose different folder
+        </button>
+      </div>
+    );
+  }
+
+  // ── Reviewing ─────────────────────────────────────────
   if (phase === 'reviewing') {
     const current = files[index];
     const video = isVideo(current);
     const src = `file://${current}`;
+    const isDuplicate = duplicates.has(current);
 
     return (
       <div className={`screen reviewing ${flash ? `flash-${flash}` : ''}`}>
@@ -143,6 +205,7 @@ export default function App() {
         {fileInfo && (
           <div className="file-info">
             <span className="file-info-name">{basename(files[index])}</span>
+            {isDuplicate && <span className="dup-badge">Possible duplicate</span>}
             <span>{formatSize(fileInfo.size)}</span>
             <span>{formatDate(fileInfo.created)}</span>
           </div>
@@ -153,19 +216,21 @@ export default function App() {
           <img key={current} src={src} alt={basename(current)} className="media" />
         )}
         <div className="hint-bar">
-          <span className="hint-delete">← delete</span>
+          <span className="hint-delete">← trash</span>
+          {history.length > 0 && <span className="hint-undo">Z undo</span>}
           <span className="hint-keep">keep →</span>
         </div>
       </div>
     );
   }
 
+  // ── Confirm ───────────────────────────────────────────
   if (phase === 'confirm') {
     const deleteList = [...toDelete];
     const count = deleteList.length;
     return (
       <div className="screen confirm">
-        <h2>{count === 0 ? 'Nothing flagged' : `Delete ${count} file${count !== 1 ? 's' : ''}?`}</h2>
+        <h2>{count === 0 ? 'Nothing flagged' : `Move ${count} file${count !== 1 ? 's' : ''} to Trash?`}</h2>
         {count > 0 && (
           <div className="delete-grid">
             {deleteList.map((f) => (
@@ -175,13 +240,10 @@ export default function App() {
                 ) : (
                   <img src={`file://${f}`} alt={basename(f)} />
                 )}
-                <button
-                  className="remove-btn"
-                  onClick={() => removeFromDelete(f)}
-                  title="Un-flag"
-                >
+                <button className="remove-btn" onClick={() => removeFromDelete(f)} title="Un-flag">
                   ×
                 </button>
+                {duplicates.has(f) && <span className="thumb-dup-badge">dup</span>}
                 <div className="thumb-name">{basename(f)}</div>
               </div>
             ))}
@@ -189,8 +251,8 @@ export default function App() {
         )}
         <div className="confirm-buttons">
           {count > 0 && (
-            <button className="btn-danger" onClick={confirmDelete}>
-              Delete {count} file{count !== 1 ? 's' : ''}
+            <button className="btn-danger" onClick={confirmTrash}>
+              Move to Trash ({count})
             </button>
           )}
           <button className="btn-secondary" onClick={cancelConfirm}>
@@ -201,6 +263,7 @@ export default function App() {
     );
   }
 
+  // ── Done ──────────────────────────────────────────────
   if (phase === 'done') {
     return (
       <div className="screen idle">
