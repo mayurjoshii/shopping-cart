@@ -164,6 +164,7 @@ export default function App() {
   if (phase === 'idle') {
     return (
       <div className="screen idle">
+        <img src="logo.png" className="app-logo" alt="Pinder logo" />
         <h1 className="logo">Pinder</h1>
         <p className="subtitle">Swipe through your photos and videos</p>
         <button className="btn-primary" onClick={openFolder}>

@@ -12,6 +12,14 @@ body {
   -webkit-user-select: none;
 }
 
+.app-logo {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 20px;
+  margin-bottom: -10px;
+}
+
 .screen {
   width: 100vw;
   height: 100vh;
@@ -33,7 +41,7 @@ body {
 
 /* Idle / done screen */
 .idle {
-  gap: 20px;
+  gap: 16px;
 }
 
 .logo {
@@ -318,6 +326,7 @@ body {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+  margin-top: 12px;
 }
 
 .btn-primary:hover {
