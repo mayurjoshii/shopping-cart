@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
@@ -38,7 +38,16 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // macOS ignores BrowserWindow's `icon` option, and in dev the Dock shows the
+  // default Electron icon. Packaged builds get theirs from assets/icon.icns.
+  if (isDev && process.platform === 'darwin') {
+    app.dock.setIcon(
+      nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png'))
+    );
+  }
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
