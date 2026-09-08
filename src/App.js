@@ -231,7 +231,7 @@ export default function App() {
         </div>
         <img src="logo.png" className="app-logo" alt="Pinder logo" />
         <h1 className="logo">Pinder</h1>
-        <p className="subtitle">Freeup storage, just a swipe away</p>
+        <p className="subtitle">Swipe away the gigabytes.</p>
         <button className="btn-primary" onClick={openFolder} disabled={folderLoading}>
           {folderLoading ? (
             <>
@@ -251,6 +251,11 @@ export default function App() {
   if (phase === 'ready' && folderSummary) {
     content = (
       <div className="screen idle">
+        <div className="mesh-bg mesh-bg-header" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         <h1 className="logo">Ready</h1>
         <div className="summary-box">
           <div className="summary-row">
@@ -288,6 +293,11 @@ export default function App() {
 
     content = (
       <div className={`screen reviewing ${flash ? `flash-${flash}` : ''}`}>
+        <div className="mesh-bg mesh-bg-header" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         {toDelete.size > 0 && (
           <button className="review-flagged-btn" onClick={openReviewMid}>
             Review flagged ({toDelete.size})

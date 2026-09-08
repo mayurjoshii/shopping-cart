@@ -28,6 +28,7 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+  z-index: 0;
   transition: background var(--duration-fast) ease;
 }
 
@@ -106,6 +107,19 @@ body {
   .mesh-blob {
     animation: none;
   }
+}
+
+/* Mesh background confined to the header band (non-idle screens) */
+.mesh-bg-header {
+  height: 240px;
+  -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+}
+
+.mesh-bg-header .mesh-blob {
+  width: 40vmax;
+  height: 40vmax;
+  opacity: 0.4;
 }
 
 .logo {
