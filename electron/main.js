@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, nativeImage, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
@@ -8,6 +8,18 @@ const isDev = process.env.ELECTRON_DEV === 'true';
 const MEDIA_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic',
   'mp4', 'mov', 'avi', 'mkv', 'm4v',
+]);
+
+// Serves local media files to the renderer via a dedicated scheme. In dev the
+// renderer is loaded over http://localhost:3000, and Chromium blocks an http
+// page from loading file:// resources directly — so a raw `file://` <img src>
+// only works in the packaged (file://-loaded) build. This protocol works the
+// same way in both dev and prod.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'pinder-media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
 ]);
 
 function createWindow() {
@@ -39,6 +51,23 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('pinder-media', async (request) => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname);
+    if (!fs.existsSync(filePath)) {
+      console.error('pinder-media: no such file', filePath);
+    }
+    try {
+      const response = await net.fetch(url.pathToFileURL(filePath).toString());
+      if (!response.ok) {
+        console.error('pinder-media: fetch not ok', response.status, filePath);
+      }
+      return response;
+    } catch (err) {
+      console.error('pinder-media: fetch threw', filePath, err);
+      throw err;
+    }
+  });
+
   // macOS ignores BrowserWindow's `icon` option, and in dev the Dock shows the
   // default Electron icon. Packaged builds get theirs from assets/icon.icns.
   if (isDev && process.platform === 'darwin') {
