@@ -24,6 +24,11 @@
   --color-delete-hover: #d93025;
   --color-warning: #ff9f0a;
 
+  /* Mesh gradient blob background (idle screen) — swap these three for your palette */
+  --mesh-color-1: #f9a634;
+  --mesh-color-2: #e7473f;
+  --mesh-color-3: #2fd8c9;
+
   /* Spacing scale */
   --space-1: 4px;
   --space-2: 8px;
@@ -58,7 +63,7 @@
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
   /* Motion */
-  --duration-fast: 160ms;
+  --duration-fast: 140ms;
   --duration-base: 240ms;
   --duration-slow: 320ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);

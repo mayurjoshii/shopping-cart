@@ -42,6 +42,70 @@ body {
 /* Idle / done screen */
 .idle {
   gap: var(--space-4);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Mesh gradient blob background */
+.mesh-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mesh-blob {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.mesh-blob-1 {
+  top: -20%;
+  left: -15%;
+  background: radial-gradient(circle at 30% 30%, var(--mesh-color-1), transparent 70%);
+  animation: meshFloat1 20s ease-in-out infinite;
+}
+
+.mesh-blob-2 {
+  bottom: -25%;
+  right: -20%;
+  background: radial-gradient(circle at 60% 40%, var(--mesh-color-2), transparent 70%);
+  animation: meshFloat2 15s ease-in-out infinite;
+}
+
+.mesh-blob-3 {
+  top: 25%;
+  left: 35%;
+  background: radial-gradient(circle at 50% 50%, var(--mesh-color-3), transparent 70%);
+  animation: meshFloat3 10s ease-in-out infinite;
+}
+
+@keyframes meshFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(12%, 14%) scale(1.15); }
+}
+
+@keyframes meshFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-14%, -50%) scale(1.1); }
+}
+
+@keyframes meshFloat3 {
+  0%, 100% { transform: translate(-50%, -70%) scale(1); }
+  50%      { transform: translate(0%, -80%) scale(1.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mesh-blob {
+    animation: none;
+  }
 }
 
 .logo {
@@ -156,11 +220,11 @@ body {
 }
 
 @keyframes swipeOutLeft {
-  to { transform: translateX(-30%) rotate(-16deg); opacity: 0; }
+  to { transform: translateX(-30%) rotate(-4deg) scale(0.94); opacity: 0; }
 }
 
 @keyframes swipeOutRight {
-  to { transform: translateX(30%) rotate(16deg); opacity: 0; }
+  to { transform: translateX(30%) rotate(4deg) scale(0.94); opacity: 0; }
 }
 
 @keyframes fadeIn {

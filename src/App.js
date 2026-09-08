@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'm4v']);
-const SWIPE_DURATION = 220; // ms — must match .swipe-exit-* animation duration (--duration-fast)
+const SWIPE_DURATION = 120; // ms — must match .swipe-exit-* animation duration (--duration-fast)
 const TOAST_DURATION = 3200; // ms visible before dismissing
 
 function isVideo(filePath) {
@@ -224,9 +224,14 @@ export default function App() {
   if (phase === 'idle') {
     content = (
       <div className="screen idle">
+        <div className="mesh-bg" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         <img src="logo.png" className="app-logo" alt="Pinder logo" />
         <h1 className="logo">Pinder</h1>
-        <p className="subtitle">Swipe through your photos and videos</p>
+        <p className="subtitle">Freeup storage, just a swipe away</p>
         <button className="btn-primary" onClick={openFolder} disabled={folderLoading}>
           {folderLoading ? (
             <>
