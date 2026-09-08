@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'm4v']);
+const SWIPE_DURATION = 120; // ms — must match .swipe-exit-* animation duration (--duration-fast)
+const TOAST_DURATION = 3200; // ms visible before dismissing
 
 function isVideo(filePath) {
   const ext = filePath.split('.').pop().toLowerCase();
@@ -25,6 +27,21 @@ function formatDate(iso) {
   });
 }
 
+let toastSeq = 0;
+
+function ToastStack({ toasts, phase }) {
+  if (!toasts.length) return null;
+  return (
+    <div className={`toast-stack${phase === 'reviewing' ? ' offset-for-review' : ''}`}>
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}${t.leaving ? ' leaving' : ''}`}>
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   const [files, setFiles] = useState([]);
   const [index, setIndex] = useState(0);
@@ -32,12 +49,27 @@ export default function App() {
   const [duplicates, setDuplicates] = useState(new Set());
   const [phase, setPhase] = useState('idle'); // idle | ready | reviewing | confirm | done
   const [flash, setFlash] = useState(null); // 'keep' | 'delete' | null
+  const [swipeDir, setSwipeDir] = useState(null); // 'left' | 'right' | null — card mid-flight
   const [returnTo, setReturnTo] = useState('done');
   const [fileInfo, setFileInfo] = useState(null);
   const [history, setHistory] = useState([]); // undo stack: [{ filePath, wasDeleted }]
   const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupCount }
+  const [folderLoading, setFolderLoading] = useState(false);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [toasts, setToasts] = useState([]);
   const filmstripRef = useRef(null);
   const activeThumbRef = useRef(null);
+
+  const addToast = useCallback((message, type = 'info') => {
+    const id = ++toastSeq;
+    setToasts((prev) => [...prev, { id, message, type, leaving: false }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 180);
+    }, TOAST_DURATION);
+  }, []);
 
   useEffect(() => {
     if (phase !== 'reviewing' || !files[index]) return;
@@ -61,30 +93,40 @@ export default function App() {
   useEffect(() => {
     if (phase !== 'reviewing') return;
 
+    const advance = () => {
+      setIndex((i) => {
+        if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
+        return i + 1;
+      });
+    };
+
     const handleKey = (e) => {
+      if (swipeDir) return; // ignore input while a card is mid-flight
       if (e.key === 'ArrowRight') {
         triggerFlash('keep');
-        setHistory((h) => [...h, { filePath: files[index], wasDeleted: false }]);
-        setIndex((i) => {
-          if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
-          return i + 1;
-        });
+        setSwipeDir('right');
+        setTimeout(() => {
+          setHistory((h) => [...h, { filePath: files[index], wasDeleted: false }]);
+          advance();
+          setSwipeDir(null);
+        }, SWIPE_DURATION);
       } else if (e.key === 'ArrowLeft') {
         triggerFlash('delete');
-        const newToDelete = new Set([...toDelete, files[index]]);
-        setToDelete(newToDelete);
-        setHistory((h) => [...h, { filePath: files[index], wasDeleted: true }]);
-        if (newToDelete.size >= 50) {
-          // Auto-pause: advance past current file then prompt review
-          setIndex((i) => (i + 1 < files.length ? i + 1 : i));
-          setReturnTo('reviewing');
-          setPhase('confirm');
-        } else {
-          setIndex((i) => {
-            if (i + 1 >= files.length) { setReturnTo('done'); setPhase('confirm'); return i; }
-            return i + 1;
-          });
-        }
+        setSwipeDir('left');
+        setTimeout(() => {
+          const newToDelete = new Set([...toDelete, files[index]]);
+          setToDelete(newToDelete);
+          setHistory((h) => [...h, { filePath: files[index], wasDeleted: true }]);
+          if (newToDelete.size >= 50) {
+            // Auto-pause: advance past current file then prompt review
+            setIndex((i) => (i + 1 < files.length ? i + 1 : i));
+            setReturnTo('reviewing');
+            setPhase('confirm');
+          } else {
+            advance();
+          }
+          setSwipeDir(null);
+        }, SWIPE_DURATION);
       } else if (e.key === 'z' || e.key === 'Z') {
         setHistory((h) => {
           if (!h.length) return h;
@@ -101,22 +143,31 @@ export default function App() {
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [phase, index, files, toDelete, triggerFlash]);
+  }, [phase, index, files, toDelete, swipeDir, triggerFlash]);
 
   async function openFolder() {
-    const result = await window.pinder.openFolder();
-    if (!result || !result.paths.length) return;
-    setFiles(result.paths);
-    setDuplicates(new Set(result.duplicates));
-    setFolderSummary({
-      count: result.paths.length,
-      totalSize: result.totalSize,
-      dupCount: result.duplicates.length,
-    });
-    setIndex(0);
-    setToDelete(new Set());
-    setHistory([]);
-    setPhase('ready');
+    setFolderLoading(true);
+    try {
+      const result = await window.pinder.openFolder();
+      if (!result) return;
+      if (!result.paths.length) {
+        addToast('No photos or videos found in that folder', 'warning');
+        return;
+      }
+      setFiles(result.paths);
+      setDuplicates(new Set(result.duplicates));
+      setFolderSummary({
+        count: result.paths.length,
+        totalSize: result.totalSize,
+        dupCount: result.duplicates.length,
+      });
+      setIndex(0);
+      setToDelete(new Set());
+      setHistory([]);
+      setPhase('ready');
+    } finally {
+      setFolderLoading(false);
+    }
   }
 
   function startReview() {
@@ -124,12 +175,19 @@ export default function App() {
   }
 
   async function confirmTrash() {
-    await window.pinder.deleteFiles([...toDelete]);
-    if (returnTo === 'reviewing') {
-      setToDelete(new Set());
-      setPhase('reviewing');
-    } else {
-      setPhase('done');
+    const count = toDelete.size;
+    setTrashLoading(true);
+    try {
+      await window.pinder.deleteFiles([...toDelete]);
+      addToast(`Moved ${count} file${count !== 1 ? 's' : ''} to Trash`, 'success');
+      if (returnTo === 'reviewing') {
+        setToDelete(new Set());
+        setPhase('reviewing');
+      } else {
+        setPhase('done');
+      }
+    } finally {
+      setTrashLoading(false);
     }
   }
 
@@ -160,15 +218,29 @@ export default function App() {
     setPhase('idle');
   }
 
+  let content = null;
+
   // ── Idle ──────────────────────────────────────────────
   if (phase === 'idle') {
-    return (
+    content = (
       <div className="screen idle">
+        <div className="mesh-bg" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         <img src="logo.png" className="app-logo" alt="Pinder logo" />
         <h1 className="logo">Pinder</h1>
-        <p className="subtitle">Swipe through your photos and videos</p>
-        <button className="btn-primary" onClick={openFolder}>
-          Open Folder
+        <p className="subtitle">Swipe away the gigabytes.</p>
+        <button className="btn-primary" onClick={openFolder} disabled={folderLoading}>
+          {folderLoading ? (
+            <>
+              <span className="spinner" />
+              Opening…
+            </>
+          ) : (
+            'Open Folder'
+          )}
         </button>
         <p className="hint">← delete &nbsp;&nbsp; → keep &nbsp;&nbsp; Z undo</p>
       </div>
@@ -177,8 +249,13 @@ export default function App() {
 
   // ── Ready (folder summary) ────────────────────────────
   if (phase === 'ready' && folderSummary) {
-    return (
+    content = (
       <div className="screen idle">
+        <div className="mesh-bg mesh-bg-header" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         <h1 className="logo">Ready</h1>
         <div className="summary-box">
           <div className="summary-row">
@@ -210,29 +287,40 @@ export default function App() {
   if (phase === 'reviewing') {
     const current = files[index];
     const video = isVideo(current);
-    const src = `file://${current}`;
+    const src = `pinder-media://local${encodeURI(current)}`;
     const isDuplicate = duplicates.has(current);
+    const mediaClass = `media swipe-card${swipeDir ? ` swipe-exit-${swipeDir}` : ''}`;
 
-    return (
+    content = (
       <div className={`screen reviewing ${flash ? `flash-${flash}` : ''}`}>
+        <div className="mesh-bg mesh-bg-header" aria-hidden="true">
+          <span className="mesh-blob mesh-blob-1" />
+          <span className="mesh-blob mesh-blob-2" />
+          <span className="mesh-blob mesh-blob-3" />
+        </div>
         {toDelete.size > 0 && (
           <button className="review-flagged-btn" onClick={openReviewMid}>
             Review flagged ({toDelete.size})
           </button>
         )}
         <div className="counter">{index + 1} / {files.length}</div>
-        {fileInfo && (
+        {fileInfo ? (
           <div className="file-info">
             <span className="file-info-name">{basename(files[index])}</span>
             {isDuplicate && <span className="dup-badge">Possible duplicate</span>}
             <span>{formatSize(fileInfo.size)}</span>
             <span>{formatDate(fileInfo.created)}</span>
           </div>
+        ) : (
+          <div className="file-info-skeleton">
+            <div className="skeleton-line" />
+            <div className="skeleton-line short" />
+          </div>
         )}
         {video ? (
-          <video key={current} src={src} autoPlay loop muted className="media" />
+          <video key={current} src={src} autoPlay loop muted className={mediaClass} />
         ) : (
-          <img key={current} src={src} alt={basename(current)} className="media" />
+          <img key={current} src={src} alt={basename(current)} className={mediaClass} />
         )}
         <div className="filmstrip" ref={filmstripRef}>
           {files.map((f, i) => (
@@ -244,7 +332,7 @@ export default function App() {
             >
               {isVideo(f)
                 ? <div className="strip-video-icon">▶</div>
-                : <img src={`file://${f}`} alt="" />}
+                : <img src={`pinder-media://local${encodeURI(f)}`} alt="" />}
             </div>
           ))}
         </div>
@@ -261,7 +349,7 @@ export default function App() {
   if (phase === 'confirm') {
     const deleteList = [...toDelete];
     const count = deleteList.length;
-    return (
+    content = (
       <div className="screen confirm">
         <h2>
           {count === 0
@@ -275,9 +363,9 @@ export default function App() {
             {deleteList.map((f) => (
               <div key={f} className="grid-thumb">
                 {isVideo(f) ? (
-                  <video src={`file://${f}`} muted />
+                  <video src={`pinder-media://local${encodeURI(f)}`} muted />
                 ) : (
-                  <img src={`file://${f}`} alt={basename(f)} />
+                  <img src={`pinder-media://local${encodeURI(f)}`} alt={basename(f)} />
                 )}
                 <button className="remove-btn" onClick={() => removeFromDelete(f)} title="Un-flag">
                   ×
@@ -290,11 +378,18 @@ export default function App() {
         )}
         <div className="confirm-buttons">
           {count > 0 && (
-            <button className="btn-danger" onClick={confirmTrash}>
-              Move to Trash ({count})
+            <button className="btn-danger" onClick={confirmTrash} disabled={trashLoading}>
+              {trashLoading ? (
+                <>
+                  <span className="spinner" />
+                  Moving…
+                </>
+              ) : (
+                `Move to Trash (${count})`
+              )}
             </button>
           )}
-          <button className="btn-secondary" onClick={cancelConfirm}>
+          <button className="btn-secondary" onClick={cancelConfirm} disabled={trashLoading}>
             {returnTo === 'reviewing' ? 'Back to review' : count === 0 ? 'Done' : 'Cancel — keep all'}
           </button>
         </div>
@@ -304,7 +399,7 @@ export default function App() {
 
   // ── Done ──────────────────────────────────────────────
   if (phase === 'done') {
-    return (
+    content = (
       <div className="screen idle">
         <h1 className="logo">All done.</h1>
         <button className="btn-primary" onClick={restart}>
@@ -314,5 +409,10 @@ export default function App() {
     );
   }
 
-  return null;
+  return (
+    <>
+      {content}
+      <ToastStack toasts={toasts} phase={phase} />
+    </>
+  );
 }
