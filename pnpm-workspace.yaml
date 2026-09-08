@@ -1,0 +1,4 @@
+allowBuilds:
+  core-js: false
+  electron: true
+  fsevents: false
