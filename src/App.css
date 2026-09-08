@@ -42,7 +42,7 @@ body {
 
 /* Idle / done screen */
 .idle {
-  gap: var(--space-4);
+  gap: var(--space-3);
   position: relative;
   overflow: hidden;
 }
@@ -130,7 +130,8 @@ body {
 
 .subtitle {
   color: var(--color-text-tertiary);
-  font-size: var(--text-lg);
+  font-size: 18px;
+  margin-top: -10px;
 }
 
 .hint {
