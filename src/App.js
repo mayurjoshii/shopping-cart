@@ -28,6 +28,35 @@ function formatDate(iso) {
 }
 
 let toastSeq = 0;
+const CONFETTI_COLORS = ['var(--color-keep)', 'var(--color-accent)', 'var(--color-warning)', '#ff6b9d', '#4ecdc4'];
+const CONFETTI_PIECES = Array.from({ length: 18 }, (_, i) => ({
+  id: i,
+  left: Math.random() * 100,
+  delay: Math.random() * 0.15,
+  duration: 0.7 + Math.random() * 0.4,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  rotate: Math.random() * 360,
+}));
+
+function Confetti() {
+  return (
+    <div className="confetti-burst" aria-hidden="true">
+      {CONFETTI_PIECES.map((p) => (
+        <span
+          key={p.id}
+          className="confetti-piece"
+          style={{
+            left: `${p.left}%`,
+            background: p.color,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            transform: `rotate(${p.rotate}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 function ToastStack({ toasts, phase }) {
   if (!toasts.length) return null;
@@ -57,6 +86,7 @@ export default function App() {
   const [folderLoading, setFolderLoading] = useState(false);
   const [trashLoading, setTrashLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [showConfetti, setShowConfetti] = useState(false);
   const filmstripRef = useRef(null);
   const activeThumbRef = useRef(null);
 
@@ -180,6 +210,8 @@ export default function App() {
     try {
       await window.pinder.deleteFiles([...toDelete]);
       addToast(`Moved ${count} file${count !== 1 ? 's' : ''} to Trash`, 'success');
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 1100);
       if (returnTo === 'reviewing') {
         setToDelete(new Set());
         setPhase('reviewing');
@@ -413,6 +445,7 @@ export default function App() {
     <>
       {content}
       <ToastStack toasts={toasts} phase={phase} />
+      {showConfetti && <Confetti />}
     </>
   );
 }

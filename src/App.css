@@ -628,3 +628,25 @@ body {
   from { opacity: 1; transform: translateX(0); }
   to { opacity: 0; transform: translateX(24px); }
 }
+
+.confetti-burst {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 999;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  animation: confettiFall ease-in forwards;
+}
+
+@keyframes confettiFall {
+  from { transform: translateY(0) rotate(0deg); opacity: 1; }
+  to   { transform: translateY(70vh) rotate(540deg); opacity: 0; }
+}
