@@ -76,6 +76,33 @@ function Confetti() {
   );
 }
 
+function DupThumb({ filePath, isKeep, onKeep }) {
+  const [info, setInfo] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    window.pinder.getFileInfo(filePath).then((i) => { if (!cancelled) setInfo(i); });
+    return () => { cancelled = true; };
+  }, [filePath]);
+
+  return (
+    <div className={`dup-thumb${isKeep ? ' dup-thumb-keep' : ''}`} onClick={onKeep}>
+      {isVideo(filePath) ? (
+        <video src={mediaSrc(filePath)} muted />
+      ) : isPdf(filePath) ? (
+        <div className="grid-pdf-icon"><span role="img" aria-label="PDF document">📄</span></div>
+      ) : (
+        <img src={thumbSrc(filePath, GRID_THUMB_WIDTH)} alt={basename(filePath)} loading="lazy" />
+      )}
+      <div className="dup-thumb-info">
+        <span className="thumb-name">{basename(filePath)}</span>
+        {info && <span>{formatSize(info.size)} · {formatDate(info.created)}</span>}
+      </div>
+      {isKeep && <span className="dup-keep-badge">Keep</span>}
+    </div>
+  );
+}
+
 function ToastStack({ toasts, phase }) {
   if (!toasts.length) return null;
   return (
@@ -94,13 +121,15 @@ export default function App() {
   const [index, setIndex] = useState(0);
   const [toDelete, setToDelete] = useState(new Set());
   const [duplicates, setDuplicates] = useState(new Set());
-  const [phase, setPhase] = useState('idle'); // idle | ready | reviewing | confirm | done
+  const [duplicateGroups, setDuplicateGroups] = useState([]); // [[path, path, ...], ...]
+  const [dupDecisions, setDupDecisions] = useState({}); // groupIndex -> 'discard-all' | { keep: path } | undefined (= keep all)
+  const [phase, setPhase] = useState('idle'); // idle | ready | duplicates | reviewing | confirm | done
   const [flash, setFlash] = useState(null); // 'keep' | 'delete' | null
   const [swipeDir, setSwipeDir] = useState(null); // 'left' | 'right' | null — card mid-flight
   const [returnTo, setReturnTo] = useState('done');
   const [fileInfo, setFileInfo] = useState(null);
   const [history, setHistory] = useState([]); // undo stack: [{ filePath, wasDeleted }]
-  const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupCount }
+  const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupGroupCount, dupFileCount }
   const [folderPath, setFolderPath] = useState(null);
   const [folderLoading, setFolderLoading] = useState(false);
   const [trashLoading, setTrashLoading] = useState(false);
@@ -205,11 +234,14 @@ export default function App() {
       }
       setFiles(result.paths);
       setFolderPath(result.folder);
-      setDuplicates(new Set(result.duplicates));
+      setDuplicateGroups(result.duplicateGroups);
+      setDupDecisions({});
+      setDuplicates(new Set(result.duplicateGroups.flat()));
       setFolderSummary({
         count: result.paths.length,
         totalSize: result.totalSize,
-        dupCount: result.duplicates.length,
+        dupGroupCount: result.duplicateGroups.length,
+        dupFileCount: result.duplicateGroups.flat().length,
       });
       setIndex(0);
       setToDelete(new Set());
@@ -222,6 +254,51 @@ export default function App() {
 
   function startReview() {
     setPhase('reviewing');
+  }
+
+  function openDuplicates() {
+    setPhase('duplicates');
+  }
+
+  function setDupDecision(groupIndex, decision) {
+    setDupDecisions((prev) => ({ ...prev, [groupIndex]: decision }));
+  }
+
+  // Applies each group's decision (default: keep all, i.e. untouched) and
+  // continues into normal swipe review with only the still-undecided files.
+  function resolveDuplicatesAndContinue() {
+    const removeFromReview = new Set();
+    const newToDelete = new Set(toDelete);
+    const remainingDuplicates = new Set();
+
+    duplicateGroups.forEach((group, i) => {
+      const decision = dupDecisions[i];
+      if (!decision || decision === 'keep-all') {
+        group.forEach((p) => remainingDuplicates.add(p));
+        return;
+      }
+      if (decision === 'discard-all') {
+        group.forEach((p) => { removeFromReview.add(p); newToDelete.add(p); });
+      } else {
+        group.forEach((p) => {
+          removeFromReview.add(p);
+          if (p !== decision.keep) newToDelete.add(p);
+        });
+      }
+    });
+
+    const remainingFiles = files.filter((f) => !removeFromReview.has(f));
+    setFiles(remainingFiles);
+    setToDelete(newToDelete);
+    setDuplicates(remainingDuplicates);
+    setIndex(0);
+
+    if (remainingFiles.length === 0) {
+      setReturnTo('done');
+      setPhase('confirm');
+    } else {
+      setPhase('reviewing');
+    }
   }
 
   async function finishReview() {
@@ -285,6 +362,8 @@ export default function App() {
     setFolderSummary(null);
     setFolderPath(null);
     setDuplicates(new Set());
+    setDuplicateGroups([]);
+    setDupDecisions({});
     setPhase('idle');
   }
 
@@ -336,19 +415,78 @@ export default function App() {
             <span className="summary-label">Total size</span>
             <span className="summary-value">{formatSize(folderSummary.totalSize)}</span>
           </div>
-          {folderSummary.dupCount > 0 && (
+          {folderSummary.dupGroupCount > 0 && (
             <div className="summary-row">
-              <span className="summary-label">Possible duplicates</span>
-              <span className="summary-value summary-dup">{folderSummary.dupCount}</span>
+              <span className="summary-label">Duplicate groups</span>
+              <span className="summary-value summary-dup">
+                {folderSummary.dupGroupCount} ({folderSummary.dupFileCount} files)
+              </span>
             </div>
           )}
         </div>
-        <button className="btn-primary" onClick={startReview}>
+        {folderSummary.dupGroupCount > 0 && (
+          <button className="btn-secondary" onClick={openDuplicates}>
+            Resolve {folderSummary.dupGroupCount} duplicate group{folderSummary.dupGroupCount !== 1 ? 's' : ''} first
+          </button>
+        )}
+        <button className="btn-primary" onClick={startReview} style={{ marginTop: 4 }}>
           Start Review
         </button>
         <button className="btn-secondary" onClick={restart} style={{ marginTop: 4 }}>
           Choose different folder
         </button>
+      </div>
+    );
+  }
+
+  // ── Duplicates ────────────────────────────────────────
+  if (phase === 'duplicates') {
+    content = (
+      <div className="screen confirm">
+        <h2>{duplicateGroups.length} duplicate group{duplicateGroups.length !== 1 ? 's' : ''}</h2>
+        <p className="hint">Click a copy to keep it and discard the rest, or choose an action below each group.</p>
+        <div className="dup-groups">
+          {duplicateGroups.map((group, i) => {
+            const decision = dupDecisions[i];
+            const keepPath = decision && decision !== 'discard-all' ? decision.keep : null;
+            return (
+              <div key={group[0]} className="dup-group">
+                <div className="dup-group-thumbs">
+                  {group.map((f) => (
+                    <DupThumb
+                      key={f}
+                      filePath={f}
+                      isKeep={keepPath === f}
+                      onKeep={() => setDupDecision(i, { keep: f })}
+                    />
+                  ))}
+                </div>
+                <div className="dup-group-actions">
+                  <button
+                    className={`btn-tertiary${!decision || decision === 'keep-all' ? ' active' : ''}`}
+                    onClick={() => setDupDecision(i, 'keep-all')}
+                  >
+                    Keep all copies
+                  </button>
+                  <button
+                    className={`btn-tertiary btn-tertiary-danger${decision === 'discard-all' ? ' active' : ''}`}
+                    onClick={() => setDupDecision(i, 'discard-all')}
+                  >
+                    Discard all
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="confirm-buttons">
+          <button className="btn-primary" onClick={resolveDuplicatesAndContinue}>
+            Continue to Review
+          </button>
+          <button className="btn-secondary" onClick={() => setPhase('ready')}>
+            Back
+          </button>
+        </div>
       </div>
     );
   }
