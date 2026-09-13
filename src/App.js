@@ -88,6 +88,7 @@ export default function App() {
   const [fileInfo, setFileInfo] = useState(null);
   const [history, setHistory] = useState([]); // undo stack: [{ filePath, wasDeleted }]
   const [folderSummary, setFolderSummary] = useState(null); // { count, totalSize, dupCount }
+  const [folderPath, setFolderPath] = useState(null);
   const [folderLoading, setFolderLoading] = useState(false);
   const [trashLoading, setTrashLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
@@ -190,6 +191,7 @@ export default function App() {
         return;
       }
       setFiles(result.paths);
+      setFolderPath(result.folder);
       setDuplicates(new Set(result.duplicates));
       setFolderSummary({
         count: result.paths.length,
@@ -209,6 +211,19 @@ export default function App() {
     setPhase('reviewing');
   }
 
+  async function finishReview() {
+    if (folderPath) {
+      const renamed = await window.pinder.renameFolderDone(folderPath);
+      if (renamed) {
+        setFolderPath(renamed);
+        addToast(`Folder marked done: ${basename(renamed)}`, 'success');
+      } else {
+        addToast("Couldn't rename folder", 'warning');
+      }
+    }
+    setPhase('done');
+  }
+
   async function confirmTrash() {
     const count = toDelete.size;
     setTrashLoading(true);
@@ -221,7 +236,7 @@ export default function App() {
         setToDelete(new Set());
         setPhase('reviewing');
       } else {
-        setPhase('done');
+        await finishReview();
       }
     } finally {
       setTrashLoading(false);
@@ -229,7 +244,11 @@ export default function App() {
   }
 
   function cancelConfirm() {
-    setPhase(returnTo === 'reviewing' ? 'reviewing' : 'done');
+    if (returnTo === 'reviewing') {
+      setPhase('reviewing');
+    } else {
+      finishReview();
+    }
   }
 
   function openReviewMid() {
@@ -251,6 +270,7 @@ export default function App() {
     setToDelete(new Set());
     setHistory([]);
     setFolderSummary(null);
+    setFolderPath(null);
     setDuplicates(new Set());
     setPhase('idle');
   }

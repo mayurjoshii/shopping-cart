@@ -126,7 +126,23 @@ ipcMain.handle('open-folder', async () => {
     if (group.length > 1) duplicates.push(...group);
   }
 
-  return { paths: filePaths, totalSize, duplicates };
+  return { folder, paths: filePaths, totalSize, duplicates };
+});
+
+// Marks a reviewed folder as done by prepending "DONE- " to its name.
+ipcMain.handle('rename-folder-done', (_event, folderPath) => {
+  const parent = path.dirname(folderPath);
+  const name = path.basename(folderPath);
+  if (name.startsWith('DONE- ')) return folderPath;
+
+  const newPath = path.join(parent, `DONE- ${name}`);
+  try {
+    fs.renameSync(folderPath, newPath);
+    return newPath;
+  } catch (err) {
+    console.error('rename-folder-done: failed', folderPath, err);
+    return null;
+  }
 });
 
 ipcMain.handle('get-file-info', (_event, filePath) => {
