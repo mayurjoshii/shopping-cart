@@ -11,14 +11,29 @@ const MEDIA_EXTENSIONS = new Set([
   'pdf',
 ]);
 
+// gif is excluded — re-encoding to JPEG would drop animation, which matters
+// for reviewing it.
+const RESIZABLE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+const THUMB_CACHE_HEADERS = { 'Cache-Control': 'private, max-age=31536000, immutable' };
+
 // Serves local media files to the renderer via a dedicated scheme. In dev the
 // renderer is loaded over http://localhost:3000, and Chromium blocks an http
 // page from loading file:// resources directly — so a raw `file://` <img src>
 // only works in the packaged (file://-loaded) build. This protocol works the
 // same way in both dev and prod.
+//
+// pinder-thumb serves a downscaled copy of the same file (resized in-memory
+// via nativeImage, original bytes on disk never touched) so the renderer
+// isn't decoding/compositing full multi-megabyte originals for thumbnails
+// and the main preview — that's what was causing the swipe/filmstrip lag on
+// large photos.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'pinder-media',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
+  {
+    scheme: 'pinder-thumb',
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
   },
 ]);
@@ -67,6 +82,32 @@ app.whenReady().then(() => {
     } catch (err) {
       console.error('pinder-media: fetch threw', filePath, err);
       throw err;
+    }
+  });
+
+  protocol.handle('pinder-thumb', async (request) => {
+    const parsed = new URL(request.url);
+    const filePath = decodeURIComponent(parsed.pathname);
+    const targetWidth = Number(parsed.searchParams.get('w')) || 160;
+    const ext = filePath.split('.').pop().toLowerCase();
+
+    const original = () => net.fetch(url.pathToFileURL(filePath).toString());
+    if (!RESIZABLE_EXTENSIONS.has(ext)) return original();
+
+    try {
+      const image = nativeImage.createFromPath(filePath);
+      if (image.isEmpty()) return original();
+
+      const { width } = image.getSize();
+      const resized = width > targetWidth
+        ? image.resize({ width: targetWidth })
+        : image;
+      return new Response(resized.toJPEG(80), {
+        headers: { 'Content-Type': 'image/jpeg', ...THUMB_CACHE_HEADERS },
+      });
+    } catch (err) {
+      console.error('pinder-thumb: failed, falling back to original', filePath, err);
+      return original();
     }
   });
 

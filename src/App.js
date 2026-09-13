@@ -5,6 +5,9 @@ const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'm4v']);
 const SWIPE_DURATION = 120; // ms — must match .swipe-exit-* animation duration (--duration-fast)
 const TOAST_DURATION = 3200; // ms visible before dismissing
 const BATCH_SIZE = 100; // filmstrip renders one batch at a time so huge folders stay smooth
+const PREVIEW_WIDTH = 1600; // main review image is capped to this, plenty for any screen
+const FILMSTRIP_THUMB_WIDTH = 112; // 2x the 56px CSS box, for retina
+const GRID_THUMB_WIDTH = 300;
 
 function isVideo(filePath) {
   const ext = filePath.split('.').pop().toLowerCase();
@@ -13,6 +16,16 @@ function isVideo(filePath) {
 
 function isPdf(filePath) {
   return filePath.split('.').pop().toLowerCase() === 'pdf';
+}
+
+function mediaSrc(filePath) {
+  return `pinder-media://local${encodeURI(filePath)}`;
+}
+
+// Downscaled copy of the same file — original bytes on disk are never
+// touched, this only shrinks what gets decoded/composited in-app.
+function thumbSrc(filePath, width) {
+  return `pinder-thumb://local${encodeURI(filePath)}?w=${width}`;
 }
 
 function basename(filePath) {
@@ -345,7 +358,7 @@ export default function App() {
     const current = files[index];
     const video = isVideo(current);
     const pdf = isPdf(current);
-    const src = `pinder-media://local${encodeURI(current)}`;
+    const src = video || pdf ? mediaSrc(current) : thumbSrc(current, PREVIEW_WIDTH);
     const isDuplicate = duplicates.has(current);
     const mediaClass = `media swipe-card${swipeDir ? ` swipe-exit-${swipeDir}` : ''}`;
     const totalBatches = Math.ceil(files.length / BATCH_SIZE);
@@ -405,7 +418,7 @@ export default function App() {
                   ? <div className="strip-video-icon">▶</div>
                   : isPdf(f)
                   ? <div className="strip-video-icon"><span role="img" aria-label="PDF document">📄</span></div>
-                  : <img src={`pinder-media://local${encodeURI(f)}`} alt="" />}
+                  : <img src={thumbSrc(f, FILMSTRIP_THUMB_WIDTH)} alt="" loading="lazy" />}
               </div>
             );
           })}
@@ -437,11 +450,11 @@ export default function App() {
             {deleteList.map((f) => (
               <div key={f} className="grid-thumb">
                 {isVideo(f) ? (
-                  <video src={`pinder-media://local${encodeURI(f)}`} muted />
+                  <video src={mediaSrc(f)} muted />
                 ) : isPdf(f) ? (
                   <div className="grid-pdf-icon"><span role="img" aria-label="PDF document">📄</span></div>
                 ) : (
-                  <img src={`pinder-media://local${encodeURI(f)}`} alt={basename(f)} />
+                  <img src={thumbSrc(f, GRID_THUMB_WIDTH)} alt={basename(f)} loading="lazy" />
                 )}
                 <button className="remove-btn" onClick={() => removeFromDelete(f)} title="Un-flag">
                   ×
