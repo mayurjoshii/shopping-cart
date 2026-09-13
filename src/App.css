@@ -215,6 +215,13 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.media-pdf {
+  width: min(90vw, 560px);
+  height: 68vh;
+  background: #fff;
+  border: 1px solid var(--color-border);
+}
+
 /* Swipe card motion */
 .swipe-card {
   animation: cardEnter var(--duration-base) var(--ease-out);
@@ -428,6 +435,16 @@ body {
   aspect-ratio: 1;
   object-fit: cover;
   display: block;
+}
+
+.grid-pdf-icon {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--color-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
 }
 
 .thumb-name {

@@ -8,6 +8,7 @@ const isDev = process.env.ELECTRON_DEV === 'true';
 const MEDIA_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic',
   'mp4', 'mov', 'avi', 'mkv', 'm4v',
+  'pdf',
 ]);
 
 // Serves local media files to the renderer via a dedicated scheme. In dev the
@@ -34,6 +35,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      plugins: true, // enables Chromium's built-in PDF viewer for <embed type="application/pdf">
     },
   });
 

@@ -10,6 +10,10 @@ function isVideo(filePath) {
   return VIDEO_EXTS.has(ext);
 }
 
+function isPdf(filePath) {
+  return filePath.split('.').pop().toLowerCase() === 'pdf';
+}
+
 function basename(filePath) {
   return filePath.split('/').pop();
 }
@@ -319,6 +323,7 @@ export default function App() {
   if (phase === 'reviewing') {
     const current = files[index];
     const video = isVideo(current);
+    const pdf = isPdf(current);
     const src = `pinder-media://local${encodeURI(current)}`;
     const isDuplicate = duplicates.has(current);
     const mediaClass = `media swipe-card${swipeDir ? ` swipe-exit-${swipeDir}` : ''}`;
@@ -351,6 +356,8 @@ export default function App() {
         )}
         {video ? (
           <video key={current} src={src} autoPlay loop muted className={mediaClass} />
+        ) : pdf ? (
+          <embed key={current} src={src} type="application/pdf" className={`${mediaClass} media-pdf`} />
         ) : (
           <img key={current} src={src} alt={basename(current)} className={mediaClass} />
         )}
@@ -364,6 +371,8 @@ export default function App() {
             >
               {isVideo(f)
                 ? <div className="strip-video-icon">▶</div>
+                : isPdf(f)
+                ? <div className="strip-video-icon"><span role="img" aria-label="PDF document">📄</span></div>
                 : <img src={`pinder-media://local${encodeURI(f)}`} alt="" />}
             </div>
           ))}
@@ -396,6 +405,8 @@ export default function App() {
               <div key={f} className="grid-thumb">
                 {isVideo(f) ? (
                   <video src={`pinder-media://local${encodeURI(f)}`} muted />
+                ) : isPdf(f) ? (
+                  <div className="grid-pdf-icon"><span role="img" aria-label="PDF document">📄</span></div>
                 ) : (
                   <img src={`pinder-media://local${encodeURI(f)}`} alt={basename(f)} />
                 )}
