@@ -4,6 +4,7 @@ import './App.css';
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'avi', 'mkv', 'm4v']);
 const SWIPE_DURATION = 120; // ms — must match .swipe-exit-* animation duration (--duration-fast)
 const TOAST_DURATION = 3200; // ms visible before dismissing
+const BATCH_SIZE = 100; // filmstrip renders one batch at a time so huge folders stay smooth
 
 function isVideo(filePath) {
   const ext = filePath.split('.').pop().toLowerCase();
@@ -327,6 +328,10 @@ export default function App() {
     const src = `pinder-media://local${encodeURI(current)}`;
     const isDuplicate = duplicates.has(current);
     const mediaClass = `media swipe-card${swipeDir ? ` swipe-exit-${swipeDir}` : ''}`;
+    const totalBatches = Math.ceil(files.length / BATCH_SIZE);
+    const batchStart = Math.floor(index / BATCH_SIZE) * BATCH_SIZE;
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
+    const batchFiles = files.slice(batchStart, batchEnd);
 
     content = (
       <div className={`screen reviewing ${flash ? `flash-${flash}` : ''}`}>
@@ -340,7 +345,12 @@ export default function App() {
             Review flagged ({toDelete.size})
           </button>
         )}
-        <div className="counter">{index + 1} / {files.length}</div>
+        <div className="counter">
+          {index + 1} / {files.length}
+          {totalBatches > 1 && (
+            <span className="batch-counter"> · batch {Math.floor(index / BATCH_SIZE) + 1}/{totalBatches}</span>
+          )}
+        </div>
         {fileInfo ? (
           <div className="file-info">
             <span className="file-info-name">{basename(files[index])}</span>
@@ -362,20 +372,23 @@ export default function App() {
           <img key={current} src={src} alt={basename(current)} className={mediaClass} />
         )}
         <div className="filmstrip" ref={filmstripRef}>
-          {files.map((f, i) => (
-            <div
-              key={f}
-              ref={i === index ? activeThumbRef : null}
-              className={`strip-thumb${i === index ? ' active' : ''}${toDelete.has(f) ? ' flagged' : ''}`}
-              onClick={() => setIndex(i)}
-            >
-              {isVideo(f)
-                ? <div className="strip-video-icon">▶</div>
-                : isPdf(f)
-                ? <div className="strip-video-icon"><span role="img" aria-label="PDF document">📄</span></div>
-                : <img src={`pinder-media://local${encodeURI(f)}`} alt="" />}
-            </div>
-          ))}
+          {batchFiles.map((f, batchI) => {
+            const i = batchStart + batchI;
+            return (
+              <div
+                key={f}
+                ref={i === index ? activeThumbRef : null}
+                className={`strip-thumb${i === index ? ' active' : ''}${toDelete.has(f) ? ' flagged' : ''}`}
+                onClick={() => setIndex(i)}
+              >
+                {isVideo(f)
+                  ? <div className="strip-video-icon">▶</div>
+                  : isPdf(f)
+                  ? <div className="strip-video-icon"><span role="img" aria-label="PDF document">📄</span></div>
+                  : <img src={`pinder-media://local${encodeURI(f)}`} alt="" />}
+              </div>
+            );
+          })}
         </div>
         <div className="hint-bar">
           <span className="hint-delete">← trash</span>
