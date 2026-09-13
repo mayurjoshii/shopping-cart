@@ -76,8 +76,9 @@ function Confetti() {
   );
 }
 
-function DupThumb({ filePath, isKeep, onKeep }) {
+function DupThumb({ filePath, isKeep, onKeep, onPreviewPdf }) {
   const [info, setInfo] = useState(null);
+  const pdf = isPdf(filePath);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,10 +87,10 @@ function DupThumb({ filePath, isKeep, onKeep }) {
   }, [filePath]);
 
   return (
-    <div className={`dup-thumb${isKeep ? ' dup-thumb-keep' : ''}`} onClick={onKeep}>
+    <div className={`dup-thumb${isKeep ? ' dup-thumb-keep' : ''}`} onClick={pdf ? () => onPreviewPdf(filePath) : onKeep}>
       {isVideo(filePath) ? (
         <video src={mediaSrc(filePath)} muted />
-      ) : isPdf(filePath) ? (
+      ) : pdf ? (
         <div className="grid-pdf-icon"><span role="img" aria-label="PDF document">📄</span></div>
       ) : (
         <img src={thumbSrc(filePath, GRID_THUMB_WIDTH)} alt={basename(filePath)} loading="lazy" />
@@ -99,6 +100,28 @@ function DupThumb({ filePath, isKeep, onKeep }) {
         {info && <span>{formatSize(info.size)} · {formatDate(info.created)}</span>}
       </div>
       {isKeep && <span className="dup-keep-badge">Keep</span>}
+      {pdf && (
+        <button
+          className={`dup-keep-btn${isKeep ? ' active' : ''}`}
+          onClick={(e) => { e.stopPropagation(); onKeep(); }}
+        >
+          {isKeep ? 'Keeping this' : 'Keep this copy'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PdfPreviewModal({ filePath, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">{basename(filePath)}</span>
+          <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">×</button>
+        </div>
+        <embed src={mediaSrc(filePath)} type="application/pdf" className="modal-pdf-embed" />
+      </div>
     </div>
   );
 }
@@ -134,6 +157,7 @@ export default function App() {
   const [folderLoading, setFolderLoading] = useState(false);
   const [trashLoading, setTrashLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [pdfPreview, setPdfPreview] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const filmstripRef = useRef(null);
   const activeThumbRef = useRef(null);
@@ -458,6 +482,7 @@ export default function App() {
                       filePath={f}
                       isKeep={keepPath === f}
                       onKeep={() => setDupDecision(i, { keep: f })}
+                      onPreviewPdf={setPdfPreview}
                     />
                   ))}
                 </div>
@@ -590,7 +615,10 @@ export default function App() {
                 {isVideo(f) ? (
                   <video src={mediaSrc(f)} muted />
                 ) : isPdf(f) ? (
-                  <div className="grid-pdf-icon"><span role="img" aria-label="PDF document">📄</span></div>
+                  <div className="grid-pdf-icon" onClick={() => setPdfPreview(f)} title="Click to view PDF">
+                    <span role="img" aria-label="PDF document">📄</span>
+                    <span className="grid-pdf-hint">View</span>
+                  </div>
                 ) : (
                   <img src={thumbSrc(f, GRID_THUMB_WIDTH)} alt={basename(f)} loading="lazy" />
                 )}
@@ -641,6 +669,7 @@ export default function App() {
       {content}
       <ToastStack toasts={toasts} phase={phase} />
       {showConfetti && <Confetti />}
+      {pdfPreview && <PdfPreviewModal filePath={pdfPreview} onClose={() => setPdfPreview(null)} />}
     </>
   );
 }
